@@ -124,6 +124,18 @@ inline unsigned int loadTexture(const char *path, GLenum warpS = GL_REPEAT, GLen
 	return textureID;
 }
 
+/**  
+ * @brief 从assimp的aiTexture结构体加载纹理
+ * 
+ * @param aiTex assimp的aiTexture指针
+ * @param warpS 纹理S轴包装模式，默认GL_REPEAT,可选GL_MIRRORED_REPEAT, GL_CLAMP_TO_EDGE, GL_CLAMP_TO_BORDER
+ * @param warpT 纹理T轴包装模式，默认GL_REPEAT,可选
+ * @param minFilter 缩小过滤器，默认GL_LINEAR_MIPMAP_LINEAR,
+ * @param magFilter 放大过滤器，默认GL_LINEAR
+ * @param borderColor 当warp模式为GL_CLAMP_TO_BORDER时，设置边界颜色，默认不设置为纯黑
+ * 
+ * @return unsigned int 纹理对象ID
+*/
 inline unsigned int loadTextureFromAssimp(const aiTexture *aiTex, GLenum warpS = GL_REPEAT, GLenum warpT = GL_REPEAT, GLenum minFilter = GL_LINEAR_MIPMAP_LINEAR, GLenum magFilter = GL_LINEAR, std::optional<glm::vec4> borderColor = std::nullopt){
 	if(aiTex == nullptr){
 		return 0;
