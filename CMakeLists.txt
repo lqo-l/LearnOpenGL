@@ -14,14 +14,18 @@ set(CHAPTER_01_beginner_DESC "入门")
 set(CHAPTER_02_lighting_ENABLE OFF)
 set(CHAPTER_02_lighting_DESC "光照系统")
 
-set(CHAPTER_03_modelLoading_ENABLE ON)
+set(CHAPTER_03_modelLoading_ENABLE OFF)
 set(CHAPTER_03_modelLoading_DESC "模型加载")
+
+set(CHAPTER_04_advanced_ENABLE ON)
+set(CHAPTER_04_advanced_DESC "高级OpenGL特性")
 
 # 章节目录列表
 set(CHAPTER_DIRS
     01_beginner
     02_lighting
     03_modelLoading
+    04_advanced
 )
 
 #============================自动添加子目录=====================================
@@ -32,8 +36,6 @@ foreach(DIR ${CHAPTER_DIRS})
         message(STATUS "检测到章节: ${DIR}")
     endif()
 endforeach()
-
-# 输出可执行文件路径
 
 #==========================================================================
 # # glad（源码库）
