@@ -2,6 +2,8 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <vector>
+#include <map>
+#include <queue>
 
 #include <shader.hpp>
 #include <camera.hpp>
@@ -160,8 +162,8 @@ int main(int argc, char **argv)
          5.0f, -0.5f, -5.0f,  2.0f, 2.0f
     };
 
-    // 草纹理顶点
-    float grassVertices[] = {
+    // 竖直平面纹理顶点(透明纹理用)
+    float transparentVertices[] = {
         // positions         // texture Coords (swapped y coordinates because texture is flipped upside down)
         0.0f,  0.5f,  0.0f,  0.0f,  1.0f,
         0.0f, -0.5f,  0.0f,  0.0f,  0.0f,
@@ -172,13 +174,14 @@ int main(int argc, char **argv)
         1.0f,  0.5f,  0.0f,  1.0f,  1.0f
     };
 
-    // 草纹理平面位置
-    std::vector<glm::vec3> grassPos;
-    grassPos.push_back(glm::vec3(-1.5f,  0.0f, -0.48f));
-    grassPos.push_back(glm::vec3( 1.5f,  0.0f,  0.51f));
-    grassPos.push_back(glm::vec3( 0.0f,  0.0f,  0.7f));
-    grassPos.push_back(glm::vec3(-0.3f,  0.0f, -2.3f));
-    grassPos.push_back(glm::vec3( 0.5f,  0.0f, -0.6f));
+    // 透明纹理平面世界位置
+    std::vector<glm::vec3> transparentPos{
+        {-0.5f,  0.0f, -0.48f},
+        { 0.5f,  0.0f,  0.51f},
+        { 0.0f,  0.0f,  0.7f},
+        {-0.3f,  0.0f, -2.3f},
+        { 0.5f,  0.0f, -0.6f}
+    };
 
     // cube VAO
     unsigned int cubeVAO, cubeVBO;
@@ -212,7 +215,7 @@ int main(int argc, char **argv)
     glGenBuffers(1, &grassVBO);
     glBindVertexArray(grassVAO);
     glBindBuffer(GL_ARRAY_BUFFER, grassVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(grassVertices), &grassVertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(transparentVertices), &transparentVertices, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
@@ -223,23 +226,37 @@ int main(int argc, char **argv)
     std::string cubeTexturePath = getAssetAbsPath(argv[0], "assets/04_advanced/textures/marble.jpg");
     std::string planeTexturePath = getAssetAbsPath(argv[0], "assets/04_advanced/textures/metal.png");
     std::string grassTexturePath = getAssetAbsPath(argv[0], "assets/04_advanced/textures/grass.png");
+    std::string windowTexturePath = getAssetAbsPath(argv[0], "assets/04_advanced/textures/window.png");
     unsigned int cubeTexture = loadTexture(cubeTexturePath.c_str());
     unsigned int planeTexture = loadTexture(planeTexturePath.c_str());
     unsigned int grassTexture = loadTexture(grassTexturePath.c_str(),GL_CLAMP_TO_EDGE,GL_CLAMP_TO_EDGE); // 草纹理边缘使用CLAMP_TO_EDGE避免半透明处边缘黑色
-    
+    unsigned int windowTexture = loadTexture(windowTexturePath.c_str(),GL_CLAMP_TO_EDGE,GL_CLAMP_TO_EDGE);
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, cubeTexture);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, planeTexture);
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, grassTexture);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, windowTexture);
 
-
+   
     // 变量
     ImVec4 clear_color{0.2f, 0.3f, 0.3f, 1.0f};
-    static int depthMode = 1; // 0=线性, 1=非线性, 2=关闭
+    static bool translucent_windows = true; // 渲染窗户
+    static int renderMode = 1; //0: 全透明草, 1: 半透明窗户
+    static bool discardAlpha = false; // 是否丢弃透明片段
+    static bool sortTransparent = true; // 是否对透明物体排序
+    static int blendMode = 0;  // 0: 不管ALPHA的正常混合颜色值 1：颜色和alpha均正常混合，一般用不到dst的alpha所以不常用
 
-    shader.use();
+     // blending
+    glEnable(GL_BLEND);
+    if(blendMode == 0){
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }else if(blendMode == 1){
+        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    }
 
     while (!glfwWindowShouldClose(window))
     {
@@ -282,16 +299,56 @@ int main(int argc, char **argv)
         glDrawArrays(GL_TRIANGLES, 0, 6);
         glBindVertexArray(0);
 
-        /// grass
+        /// 渲染透明物体(全透明草或者半透明窗户)
         glBindVertexArray(grassVAO);
-        shader.setInt("texture1", 2);
-
-        for(int i = 0; i < grassPos.size(); ++i){
-            model = glm::mat4(1.0f);
-            model = glm::translate(model, grassPos[i]);
-            shader.setMat4("model", model);
-            glDrawArrays(GL_TRIANGLES, 0, 6);
+        if(renderMode == 0){ // 草
+            shader.setInt("texture1", 2);
+        }else if(renderMode == 1){ // 窗户
+            shader.setInt("texture1", 3);
         }
+        
+        if(sortTransparent){ // 排序
+            // // map
+            // std::map<float, glm::vec3> sorted;
+            // for(int i = 0; i<transparentPos.size(); ++i){
+            //     float distance = glm::length(camera.Position - transparentPos[i]);
+            //     sorted.insert_or_assign(distance, transparentPos[i]);
+            // }
+            // for(std::map<float, glm::vec3>::reverse_iterator it = sorted.rbegin(); it != sorted.rend(); ++it){
+            //     model = glm::mat4(1.0f);
+            //     model = glm::translate(model, it->second);
+            //     shader.setMat4("model", model);
+            //     glDrawArrays(GL_TRIANGLES, 0, 6);
+            // }
+
+            // priority_queue
+            auto comp = [&](const glm::vec3 &a, const glm::vec3 &b){
+                float A = glm::length(camera.Position - a);
+                float B = glm::length(camera.Position - b);
+                return A < B; // 大顶堆
+            };
+            std::priority_queue<glm::vec3,std::vector<glm::vec3>, decltype(comp)> pq(comp);
+            for(int i = 0; i<transparentPos.size(); i++){
+                pq.emplace(transparentPos[i]);
+            }
+            while(!pq.empty()){
+                glm::vec3 pos = pq.top(); pq.pop();
+                model = glm::mat4(1.0f);
+                model = glm::translate(model, pos);
+                shader.setMat4("model", model);
+                glDrawArrays(GL_TRIANGLES, 0, 6);
+            }
+            
+        }else{
+            for(int i = 0; i < transparentPos.size(); ++i){
+                model = glm::mat4(1.0f);
+                model = glm::translate(model, transparentPos[i]);
+                shader.setMat4("model", model);
+                glDrawArrays(GL_TRIANGLES, 0, 6);
+            }
+        }
+
+        
         glBindVertexArray(0);
 
         /// imgui(最后绘制，避免被覆盖)
@@ -303,8 +360,25 @@ int main(int argc, char **argv)
             ImGui::SetNextWindowSize(ImVec2(400, 500), ImGuiCond_FirstUseEver);
             ImGui::Begin("Config");
 
-
-
+            // 渲染选项(二选一)
+            ImGui::Text("章节选项");
+            ImGui::RadioButton("1.全透明草", &renderMode, 0);
+            ImGui::SameLine();
+            ImGui::RadioButton("2.半透明窗户", &renderMode, 1);
+            ImGui::Spacing();
+            ImGui::Checkbox("丢弃透明片段，一般为false", &discardAlpha);
+            ImGui::Spacing();
+            ImGui::Separator();
+            if(ImGui::RadioButton("混合模式 0: 常用的颜色混合", &blendMode, 0) || ImGui::RadioButton("混合模式 1: 颜色和alpha均混合", &blendMode, 1)){
+                if(blendMode == 0){
+                    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                }else if(blendMode == 1){
+                    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+                }
+            }
+            ImGui::Separator();
+            ImGui::Checkbox("对透明物体排序", &sortTransparent);
+                
             // 其他
             ImGui::Spacing();
             ImGui::Separator();
