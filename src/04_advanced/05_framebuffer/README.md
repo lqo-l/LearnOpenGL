@@ -1,0 +1,17 @@
+效果图：
+无效果：
+![none](results/1_none.png)
+线框：
+![none](results/2_wireframe.png)
+反色：
+![none](results/3_invert.png)
+灰度：
+![none](results/4_grey.png)
+复古棕褐色：
+![none](results/5_sepia.png)
+高斯模糊：
+![none](results/6_gaussianblur.png)
+锐化：
+![none](results/7_sharpen.png)
+边缘检测；
+![none](results/8_edgeDetect.png)
