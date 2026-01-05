@@ -2,3 +2,4 @@
 add_subdirectory(01_depth_testing)
 add_subdirectory(02_stencil_testing)
 add_subdirectory(03_blending)
+add_subdirectory(04_face_culling)
