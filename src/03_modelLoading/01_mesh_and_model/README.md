@@ -1,3 +1,6 @@
+# TODO
+- [ ]  assmip加载pmx
+
 # Problem
 1. blender导出的fbx、glb格式几乎都没有成功导出纹理，原因不明。仅Princle BSDF的obj可以成功导出，但似乎纹理坐标错误无法正常显示
 2. better fbx Exporter导出的obj和fbx都没有纹理
@@ -14,9 +17,10 @@
 ![Assimp数据结构](assimp.png "Assimp数据结构")
 
 ## 导入
- Assimp::Importer importer;
-    const aiScene *scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs); 
-
+```c++
+Assimp::Importer importer;
+const aiScene *scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs); 
+```
 导入选项：
 `aiProcess_Triangulate`: 告诉Assimp，如果模型不是（全部）由三角形组成，它需要将模型所有的图元形状变换为三角形。
 `aiProcess_FlipUVs`: 加载图像时，翻转y轴(OpenGL的t从底端向上增大，图像一般上方为t=0)
@@ -38,3 +42,26 @@ stbi_set_flip_vertically_on_load: 翻转实际的data数据data[y] = data[height
 
 # demo
 ![结果图](success.png)
+
+# assimp纹理类型
+
+```c++
+enum aiTextureType {
+    aiTextureType_NONE = 0,     
+    aiTextureType_DIFFUSE = 1,  // map_Kd
+    aiTextureType_SPECULAR = 2, // map_Ks
+    aiTextureType_AMBIENT = 3,  // map_Ka
+    aiTextureType_EMISSIVE = 4,
+    aiTextureType_HEIGHT = 5,   // map_Bump
+    aiTextureType_NORMALS = 6,  // map_Kn
+    aiTextureType_SHININESS = 7,
+    aiTextureType_OPACITY = 8,
+    aiTextureType_DISPLACEMENT = 9, 
+    aiTextureType_LIGHTMAP = 10,
+    aiTextureType_REFLECTION = 11, // 并不会读取map_refl 
+    ...
+}
+
+Assmip仅保留原始纹理路径或内嵌内存块，并不会因为纹理类型不同而进行其他解释。
+所以可以任意读取使用
+```

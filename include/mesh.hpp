@@ -68,9 +68,12 @@ inline void Mesh::setupMesh(){
 }
 
 inline void Mesh::Draw(Shader &shader){
-    // shader中预设texture_diffuse1,texture_diffuse2,...,texture_specular1,...
+    // shader中用material结构体存储纹理
+    // material中预设sampler2D类型的texture_diffuse1,texture_diffuse2,...,texture_specular1,...
     unsigned int diffuseIdx = 1;
     unsigned int specularIdx = 1;
+    unsigned int normalIdx = 1;
+    unsigned int ambientIdx = 1;
     for(unsigned int i = 0; i < textures.size(); i++){
         std::string name;
         std::string type = textures[i].type;
@@ -79,11 +82,17 @@ inline void Mesh::Draw(Shader &shader){
             number = std::to_string(diffuseIdx++); 
         }else if(type == "texture_specular"){
             number = std::to_string(specularIdx++);
+        }else if(type == "texture_normal"){
+            number = std::to_string(normalIdx++);
+        }else if(type == "texture_ambient"){
+            number = std::to_string(ambientIdx++);
         }
         name = "material." + type + number;
 
+        // 设置shader读取的纹理单元
         shader.setInt(name, i);
-        glActiveTexture(GL_TEXTURE0 + i); // 激活对应的纹理单元
+        // 设置纹理单元绑定的纹理对象
+        glActiveTexture(GL_TEXTURE0 + i); 
         glBindTexture(GL_TEXTURE_2D, textures[i].id);
     }
 
