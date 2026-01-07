@@ -5,11 +5,36 @@
 #include <string>
 #include <iostream>
 #include <filesystem>
+#include <vector>
+#include <optional>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <stb_image.h>
+
+// 简单的最近邻缩放函数
+inline unsigned char* resizeImage(unsigned char* input, int inWidth, int inHeight, int outWidth, int outHeight, int channels) {
+    unsigned char* output = new unsigned char[outWidth * outHeight * channels];
+    
+    float xRatio = (float)inWidth / outWidth;
+    float yRatio = (float)inHeight / outHeight;
+    
+    for(int y = 0; y < outHeight; y++) {
+        for(int x = 0; x < outWidth; x++) {
+            int srcX = (int)(x * xRatio);
+            int srcY = (int)(y * yRatio);
+            
+            for(int c = 0; c < channels; c++) {
+                output[(y * outWidth + x) * channels + c] = 
+                    input[(srcY * inWidth + srcX) * channels + c];
+            }
+        }
+    }
+    
+    return output;
+}
+
 #include <assimp/scene.h>
 
 namespace fs = std::filesystem;
@@ -169,3 +194,73 @@ inline unsigned int loadTextureFromAssimp(const aiTexture *aiTex, GLenum warpS =
 //     unsigned int textureID = loadTexture(filename.c_str());
 //     return textureID;
 // }
+
+
+/**
+ * @brief 加载纹理
+ * 
+ * @param faces 纹理路径数组：绝对路径或相对于可执行文件的路径
+ * 
+ * @return unsigned int 纹理对象ID
+ */
+inline unsigned int loadCubemap(std::vector<std::string> faces)
+{
+	unsigned int textureID;
+	glGenTextures(1, &textureID);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+
+	int width, height, nrComponents;
+	int targetSize = -1; // 目标尺寸（取第一个面的尺寸，且强制为正方形）
+	
+	for(int i = 0; i < faces.size(); i++)
+	{
+		// stbi_set_flip_vertically_on_load(true); // cubemap一般不需要翻转
+		unsigned char *data = stbi_load(faces[i].c_str(), &width, &height, &nrComponents, 0);
+		
+		if(!data){
+			std::cout << "[ERROR] Texture failed to load at path: " << faces[i] << std::endl;
+			continue;
+		}
+		
+		// 第一个面：确定目标尺寸（取较小的边，保证正方形）
+		if(i == 0){
+			targetSize = std::min(width, height);
+			// std::cout << "[INFO] Cubemap target size set to: " << targetSize << "x" << targetSize << std::endl;
+		}
+		
+		unsigned char* finalData = data;
+		bool needsFree = false;
+		// 尺寸不一致，自动缩放到相同大小
+		if(width != targetSize || height != targetSize){
+			std::cout << "[INFO] Resizing face " << i << " from " << width << "x" << height 
+			          << " to " << targetSize << "x" << targetSize << std::endl;
+			
+			finalData = resizeImage(data, width, height, targetSize, targetSize, nrComponents);
+			needsFree = true;
+		}
+		
+		GLenum format;
+		if (nrComponents == 1)
+			format = GL_RED;
+		else if (nrComponents == 3)
+			format = GL_RGB;
+		else if (nrComponents == 4)
+			format = GL_RGBA;
+
+		// 立方体贴图有6个纹理目标GL_TEXTURE_CUBE_MAP_POSITIVE_X 到 GL_TEXTURE_CUBE_MAP_NEGATIVE_Z，其枚举int值线性增长
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, format, targetSize, targetSize, 0, format, GL_UNSIGNED_BYTE, finalData);
+
+		// 释放内存
+		stbi_image_free(data);
+		if(needsFree){
+			delete[] finalData;
+		}
+	}
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE); 
+	
+	return textureID;
+}
