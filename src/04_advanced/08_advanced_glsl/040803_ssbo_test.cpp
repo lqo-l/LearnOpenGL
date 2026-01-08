@@ -101,8 +101,8 @@ int main(int argc, char **argv)
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     // 着色器(两端shader程序,使用不同的model和相同的view,proj,测试ubo共享)
-    Shader shader1(getAssetAbsPath(argv[0], "ubo_test1.vert"), getAssetAbsPath(argv[0], "ubo_test.frag")); 
-    Shader shader2(getAssetAbsPath(argv[0], "ubo_test2.vert"), getAssetAbsPath(argv[0], "ubo_test.frag"));
+    Shader shader1(getAssetAbsPath(argv[0], "ssbo_test.vert"), getAssetAbsPath(argv[0], "ssbo_test.frag")); 
+  
 
     // 立方体顶点、uv坐标、法线。(x,  y,  z,  u, v,  nx, ny, nz, )
     float cubeVertices[] = {
@@ -160,63 +160,115 @@ int main(int argc, char **argv)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8* sizeof(float), (void*)0);
     glBindVertexArray(0);
 
-#pragma region ubo
-    // 顶点着色器可用的标量uniform数，4096
-    GLint comp;
-    glGetIntegerv(GL_MAX_VERTEX_UNIFORM_COMPONENTS, &comp);
-    printf("Nums of uniform scalar that a vertex shader can declare: %d\n", comp); // 顶点着色器可使用的非block uniform 标量组件的最大数量,编译期常量额度,存储于寄存器
+#pragma region ssbo
+    // 创建ssbo
+    GLuint ssbo;
+    glGenBuffers(1, &ssbo);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
+    // 获取shader中的block idx
+    GLuint index = glGetProgramResourceIndex(shader1.ID, GL_SHADER_STORAGE_BLOCK, "testBlock");
+    // 获取block size
+    GLint blockSize = 0;
+    GLenum prop = GL_BUFFER_DATA_SIZE;
+    glGetProgramResourceiv(
+        shader1.ID, 
+        GL_SHADER_STORAGE_BLOCK, 
+        index,
+        1,      // 属性数量
+        &prop,  // 属性数组
+        1,      // 返回值数量上限
+        NULL,   // 实际返回数量（可选）
+        &blockSize // 输出结果
+    );
 
-    // 单个uniform block的最大尺寸 64KB
-	GLint maxUniformBlockSize;
-	glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &maxUniformBlockSize);
-	std::cout<< "max size of a uniform block(KB) : "<< maxUniformBlockSize/1024 << std::endl; 
+    // 申请内存
+    glBufferData(GL_SHADER_STORAGE_BUFFER, blockSize, NULL, GL_DYNAMIC_DRAW); // 申请block大小的空间
+    // ssbo绑定绑定点
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, ssbo); // 绑定到绑定点1
+    
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
-    // 最多可绑定的uniform binding points绑定槽位数  84
-    GLint maxUniformBufferBindings;
-    glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &maxUniformBufferBindings);
-    std::cout<< "max num of uniform buffer bindings: " << maxUniformBufferBindings << std::endl;
+    // shader buffer块绑定到绑定点
+    // glShaderStorageBlockBinding(shader1.ID, index, 1); (shader中已经指定了，这里注释掉)
 
-    // 所有着色器阶段可用的uniform blocks数量  84
-    GLint maxCombinedUniformBlocks;
-    glGetIntegerv(GL_MAX_COMBINED_UNIFORM_BLOCKS, &maxCombinedUniformBlocks);
-    std::cout<<"max num of combined uniform blocks: " << maxCombinedUniformBlocks << std::endl;
+    ///  获取每个变量的偏移
+    // 获取变量个数
+    GLint numMembers;
+    glGetProgramInterfaceiv(
+        shader1.ID,
+        GL_BUFFER_VARIABLE,      // ← 查询 buffer 内部的变量（即成员）
+        GL_ACTIVE_RESOURCES,
+        &numMembers
+    );  
+    std::unordered_map<std::string, GLint> memberOffsets; // 变量名，偏移量
+    for (GLuint i = 0; i < numMembers; ++i) { // OpenGL 不保证 GL_BUFFER_VARIABLE 的枚举顺序
+        // 获取成员名称（可选）
+        char name[256];
+        GLsizei length;
+        glGetProgramResourceName(
+            shader1.ID,
+            GL_BUFFER_VARIABLE,
+            i,
+            sizeof(name),
+            &length,
+            name
+        );
 
-    GLint uniformBufferOffsetAlign = 0;
-    glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uniformBufferOffsetAlign);
-    std::cout<< "uniform buffer offset alignment: " << uniformBufferOffsetAlign << std::endl; // glBindBufferRange的offset必须是该值的整数倍
+        // 查询该成员的 offset
+        GLenum prop = GL_OFFSET;
+        GLint offset = -1;
+        glGetProgramResourceiv(
+            shader1.ID,
+            GL_BUFFER_VARIABLE,   // ← 关键：查的是 buffer variable（SSBO/UBO 成员）
+            i,                    // ← 成员的 resource index（从 0 到 numMembers-1）
+            1,
+            &prop,
+            1,
+            NULL,
+            &offset
+        );
+        memberOffsets[name] = offset;
+        printf("Member '%s' offset = %d\n", name, offset);
+    }
 
-    // 创建ubo
-    unsigned int ubo;
-    glGenBuffers(1, &ubo);
-   
-    // shader uniform块绑定到绑定点
-    unsigned int uniformBlockIndex1 = glGetUniformBlockIndex(shader1.ID, "Matrices");
-    unsigned int uniformBlockIndex2 = glGetUniformBlockIndex(shader2.ID, "Matrices");
-    std::cout<< "shader1 Matrices index: " << uniformBlockIndex1 << std::endl;
-    std::cout<< "shader2 Matrices index: " << uniformBlockIndex2 << std::endl;
-    glUniformBlockBinding(shader1.ID, uniformBlockIndex1, 1); // 绑定到绑定点1
-    glUniformBlockBinding(shader2.ID, uniformBlockIndex2, 1); // 绑定到绑定点1
+    // 注：这里想通过变量位置直接设置测试写的变量 write_color_in_shader
+    // 但是实测发现idx = 3的位置是view， idx=2的地方是projection，似乎和定义顺序反过来了。所以通过上一步的哈希表获取变量名对应offset
+    glm::vec3 write_color_in_shader{}; 
+    // prop = GL_OFFSET;
+    // GLint Idx3_Offset = -1;
+    // glGetProgramResourceiv(
+    //     shader1.ID,
+    //     GL_BUFFER_VARIABLE,   // 查的是 buffer variable（SSBO/UBO 成员）
+    //     3,                    // 原以为3是write_color_in_shader成员的index，结果不是
+    //     1,
+    //     &prop,
+    //     1,
+    //     NULL,
+    //     &Idx3_Offset
+    // );
+    // std::cout<<"Idx3_Offset: "<< Idx3_Offset <<std::endl;
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, memberOffsets["write_color_in_shader"], sizeof(glm::vec3), &write_color_in_shader);  // 更新is_color_black,glsl bool是4B
 
-    // 分配内存
-    // 硬编码
-    // glBufferData(GL_UNIFORM_BUFFER, 2 * sizeof(glm::mat4), nullptr, GL_STATIC_DRAW); // 直接申请两个mat4的空间,view和proj
-    // 查询方式
-    GLint bufferSize = 0;
-    glGetActiveUniformBlockiv(shader1.ID, uniformBlockIndex1, GL_UNIFORM_BLOCK_DATA_SIZE, &bufferSize);//获取Uniform块的大小
-    glBindBuffer(GL_UNIFORM_BUFFER,ubo);
-    glBufferData(GL_UNIFORM_BUFFER, bufferSize, NULL, GL_STATIC_DRAW); // 根据获取到的bufferSize分配内存
+    // GLint Idx2_Offset = -1;
+    // glGetProgramResourceiv(
+    //     shader1.ID,
+    //     GL_BUFFER_VARIABLE,   // 查的是 buffer variable（SSBO/UBO 成员）
+    //     2,                    // 原以为2是color成员的index
+    //     1,
+    //     &prop,
+    //     1,
+    //     NULL,
+    //     &Idx2_Offset
+    // );
+    // std::cout<<"Idx2_Offset: "<< Idx2_Offset <<std::endl;
+    
 
-    // 把ubo绑定到绑定点(两种方式)
-    glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo); // 绑定到绑定点1
-    // glBindBufferRange(GL_UNIFORM_BUFFER, 1, ubo, 0, 2 * sizeof(glm::mat4)); // 范围绑定函数, 让绑定点仅使用ub的一部分数据,这里使用了全部数据.
+#pragma endregion ssbo
 
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-
-#pragma endregion ubo
 
     // 变量
     ImVec4 clear_color{0.2f, 0.3f, 0.3f, 1.0f};
+    static glm::vec3 color{1.0f, 0.0f, 0.0f};
     glEnable(GL_DEPTH_TEST);
     
     while (!glfwWindowShouldClose(window))
@@ -230,23 +282,20 @@ int main(int argc, char **argv)
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-#pragma region ubo update
+#pragma region ssbo update
         glm::mat4 view = camera.GetViewMatrix();
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), float(SCR_WIDTH) / float(SCR_HEIGHT), 0.1f, 100.f);
         
-        glBindBuffer(GL_UNIFORM_BUFFER, ubo);
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(view));  // 更新view , sizeof(glm::mat4) = 16*4 = 64字节,可以直接写64
-        glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(projection));  // 更新proj
-        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
 
-        // 以下传统更新方式不可用,uniform block和uniform scalar区别很大
-        // shader1.setMat4("view", view);
-        // shader1.setMat4("projection", projection);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(view));  // 更新view , sizeof(glm::mat4) = 16*4 = 64字节,可以直接写64
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(projection));  // 更新proj
+        // is_color_black在gpu中修改，测试用，不在cpu中设置
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, memberOffsets["color"], sizeof(glm::vec3), glm::value_ptr(color));  // 更新color
 
-        // shader2.setMat4("view", view);
-        // shader2.setMat4("projection", projection);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
-#pragma endregion ubo update
+#pragma endregion ssbo update
         
         // shader1
         shader1.use();
@@ -257,17 +306,26 @@ int main(int argc, char **argv)
         glBindVertexArray(cubeVAO);
         glDrawArrays(GL_TRIANGLES, 0, 36);
         glBindVertexArray(0);
-        
-        // shader2
-        shader2.use();
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(1.0f, 0.0f, 0.0f));
-        shader2.setMat4("model", model);
 
-        glBindVertexArray(cubeVAO);
-        glDrawArrays(GL_TRIANGLES, 0, 36);
-        glBindVertexArray(0);
-        
+#pragma region read ssbo back
+        // cpu获取数据 
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);  // 必须先绑定！
+        // 直接get
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);  
+            // GL_BUFFER_UPDATE_BARRIER_BIT	 用于buffer等cpu写入
+            // GL_SHADER_STORAGE_BARRIER_BIT	用于cpu等gpu写入
+        glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, memberOffsets["write_color_in_shader"], sizeof(glm::vec3), &write_color_in_shader); // 直接获取buffer块数据到结构体
+
+        // // 映射方式
+        // glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);//隔断作用，为了让数据修改完成
+        // void* p = glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY); //获取着色器buffer块内存地址
+        // glm::vec3* write_color_in_shader_in_block = (glm::vec3*)((char*)p + memberOffsets["write_color_in_shader"]);
+        // memcpy(&write_color_in_shader, (void*)write_color_in_shader_in_block, sizeof(glm::vec3));//拷贝buffer块数据到结构体
+        // glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+
+        // glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+#pragma endregion read ssbo back
 
         /// --- imgui(最后绘制，避免被覆盖) ---
         ImGui_ImplOpenGL3_NewFrame();
@@ -278,6 +336,10 @@ int main(int argc, char **argv)
             ImGui::SetNextWindowSize(ImVec2(400, 500), ImGuiCond_FirstUseEver);
             ImGui::Begin("Config");
 
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::SliderFloat3("Cube Color", (float*)&color, 0.0f, 1.0f);
+            ImGui::Text("write_color_in_shader: (%.2f, %.2f, %.2f)", write_color_in_shader.x, write_color_in_shader.y, write_color_in_shader.z);
 
 
             // 其他

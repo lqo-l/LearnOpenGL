@@ -4,6 +4,9 @@ target_link_libraries(040801_points OpenGLCommon)
 add_executable(040802_ubo_test 040802_ubo_test.cpp)
 target_link_libraries(040802_ubo_test OpenGLCommon)
 
+add_executable(040803_ssbo_test 040803_ssbo_test.cpp)
+target_link_libraries(040803_ssbo_test OpenGLCommon)
+
 file(GLOB shaders "*.vert" "*.frag")
 file(COPY ${shaders} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
