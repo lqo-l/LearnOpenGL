@@ -1,7 +1,7 @@
 build
 bak
 .vscode
-test
+tmp*
 
 # GNU Global Ignore File
 GPATH
