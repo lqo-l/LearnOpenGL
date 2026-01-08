@@ -161,14 +161,25 @@ int main(int argc, char **argv)
     glBindVertexArray(0);
 
 #pragma region ubo
-    // 硬件限制
+    // 顶点着色器可用的标量uniform数，4096
     GLint comp;
     glGetIntegerv(GL_MAX_VERTEX_UNIFORM_COMPONENTS, &comp);
     printf("Nums of uniform scalar that a vertex shader can declare: %d\n", comp); // 顶点着色器可使用的非block uniform 标量组件的最大数量,编译期常量额度,存储于寄存器
 
+    // 单个uniform block的最大尺寸 64KB
 	GLint maxUniformBlockSize;
 	glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &maxUniformBlockSize);
-	std::cout<< "max size of uniform block(KB) : "<< maxUniformBlockSize/1024 << std::endl;
+	std::cout<< "max size of a uniform block(KB) : "<< maxUniformBlockSize/1024 << std::endl; 
+
+    // 最多可绑定的uniform binding points绑定槽位数  84
+    GLint maxUniformBufferBindings;
+    glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &maxUniformBufferBindings);
+    std::cout<< "max num of uniform buffer bindings: " << maxUniformBufferBindings << std::endl;
+
+    // 所有着色器阶段可用的uniform blocks数量  84
+    GLint maxCombinedUniformBlocks;
+    glGetIntegerv(GL_MAX_COMBINED_UNIFORM_BLOCKS, &maxCombinedUniformBlocks);
+    std::cout<<"max num of combined uniform blocks: " << maxCombinedUniformBlocks << std::endl;
 
     GLint uniformBufferOffsetAlign = 0;
     glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uniformBufferOffsetAlign);
