@@ -28,6 +28,8 @@ public:
     };
 
     void Draw(Shader &shader);
+    const std::vector<Mesh> &getMeshes() const { return meshes; }
+    std::vector<Mesh> &getMeshes() { return meshes; }
 
     void Debug(){
         std::cout<< "----------------------\nModel Dir: "<< directory << std::endl;
@@ -40,7 +42,6 @@ public:
             std::cout << "Texture path: " << tex.path << ", id: " << tex.id << ", type: " << tex.type << std::endl;
         }
     }
-
 private:
     std::vector<Mesh> meshes;
     std::vector<Texture> textures_loaded; // 记录加载过的纹理，避免每个mesh都加载重复的纹理

@@ -36,6 +36,8 @@ public:
 	void setVec4(const std::string& name, glm::vec4 value) const;
 	void setVec3(const std::string& name, glm::vec3 value) const;
 	void setVec3(const std::string& name, float r, float g, float b) const;
+	void setVec2(const std::string& name, glm::vec2 value) const;
+	void setVec2(const std::string& name, float r, float g) const;
 
 private:
 	// 辅助函数：读取 shader 文件内容
@@ -180,7 +182,12 @@ inline void Shader::setVec4(const std::string& name, glm::vec4 value) const {
 inline void Shader::setVec3(const std::string& name, glm::vec3 value) const {
 	glUniform3fv(glGetUniformLocation(ID, name.c_str()), 1, glm::value_ptr(value));
 }
-inline void Shader::setVec3(const std::string& name, float r, float g, float b) const
-{
+inline void Shader::setVec3(const std::string& name, float r, float g, float b) const{
 	glUniform3fv(glGetUniformLocation(ID, name.c_str()), 1, glm::value_ptr(glm::vec3(r, g, b)));
+}
+inline void Shader::setVec2(const std::string& name, glm::vec2 value) const {
+	glUniform2fv(glGetUniformLocation(ID, name.c_str()), 1, glm::value_ptr(value));
+}
+inline void Shader::setVec2(const std::string& name, float r, float g) const{
+	glUniform2fv(glGetUniformLocation(ID, name.c_str()), 1, glm::value_ptr(glm::vec2(r, g)));
 }
