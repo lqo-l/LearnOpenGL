@@ -17,8 +17,11 @@ set(CHAPTER_02_lighting_DESC "光照系统")
 set(CHAPTER_03_modelLoading_ENABLE OFF)
 set(CHAPTER_03_modelLoading_DESC "模型加载")
 
-set(CHAPTER_04_advanced_ENABLE ON)
+set(CHAPTER_04_advanced_ENABLE OFF)
 set(CHAPTER_04_advanced_DESC "高级OpenGL特性")
+
+set(CHAPTER_05_advancedLighting_ENABLE ON)
+set(CHAPTER_05_advancedLighting_DESC "高级光照")
 
 # 章节目录列表
 set(CHAPTER_DIRS
@@ -26,6 +29,7 @@ set(CHAPTER_DIRS
     02_lighting
     03_modelLoading
     04_advanced
+    05_advancedLighting
 )
 
 #============================自动添加子目录=====================================

@@ -6,15 +6,10 @@ in vec3 fragWorldPos;
 
 out vec4 FragColor;
 
-// 教程这里漫反射贴图当纹理用了的感觉。
 
 struct Material {
-    sampler2D texture_diffuse1;
-    sampler2D texture_diffuse2;
-    sampler2D texture_diffuse3;
-    sampler2D texture_diffuse4;
-    sampler2D texture_specular1;
-    sampler2D texture_specular2;
+    sampler2D texture_diffuse;
+    float texture_specular;
     float shininess; // 高光指数
 };
 
@@ -60,7 +55,9 @@ struct SpotLight{
 };
 
 uniform Material material;
+
 uniform vec3 viewPos;
+// uniform sampler2D texture1; // removed unused texture
 
 uniform DirLight parallel;
 uniform PointLight point;
@@ -74,11 +71,15 @@ vec3 calcDirLight(DirLight light, vec3 norm, vec3 viewDir, vec3 texKd, vec3 texK
 vec3 calcPointLight(PointLight light, vec3 norm, vec3 fragPos, vec3 viewDir, vec3 texKd, vec3 texKs);
 vec3 calcSpotLight(SpotLight light, vec3 norm, vec3 fragPos, vec3 viewDir, vec3 texKd, vec3 texKs);
 
-void main(){
+uniform bool useBlinnPhong;
+
+void main()
+{	
+
     vec3 norm = normalize(normal); // world space下的法线
     vec3 viewDir = normalize(viewPos - fragWorldPos); 
-    vec3 texKd = texture(material.texture_diffuse1, TexCoords).rgb;
-    vec3 texKs = texture(material.texture_specular1, TexCoords).rgb;
+    vec3 texKd = texture(material.texture_diffuse, TexCoords).rgb;
+    vec3 texKs = vec3(material.texture_specular); 
 
     // 多光源累加
     vec3 result = vec3(0);
@@ -98,6 +99,7 @@ void main(){
     FragColor = vec4(result, 1.0);
 }
 
+
 // 坐标和向量均为世界坐标下
 vec3 calcDirLight(DirLight light, vec3 norm, vec3 viewDir, vec3 texKd, vec3 texKs){
     vec3 result = vec3(0);
@@ -107,8 +109,15 @@ vec3 calcDirLight(DirLight light, vec3 norm, vec3 viewDir, vec3 texKd, vec3 texK
     result += light.Ia * texKd * light.lightColor;
     vec3 lightDir = normalize(-light.direction);
     result += light.Id * texKd * light.lightColor * max(0,dot(lightDir,norm));
-    vec3 h = normalize(lightDir + viewDir); // 半程向量
-    result += light.Is * texKs * light.lightColor * pow(max(dot(norm, h ),0.0),material.shininess) ;
+
+    if(useBlinnPhong){
+        vec3 h = normalize(lightDir + viewDir); // 半程向量
+        result += light.Is * texKs * light.lightColor * pow(max(dot(norm, h),0.0),material.shininess) ;
+        return result;
+    }else{
+        vec3 reflectDir = reflect(-lightDir, norm);
+        result += light.Is * texKs * light.lightColor * pow(max(dot(viewDir, reflectDir),0.0),material.shininess) ;
+    }
 
     return result;
 }
@@ -124,8 +133,14 @@ vec3 calcPointLight(PointLight light, vec3 norm, vec3 fragPos, vec3 viewDir, vec
     result += light.Ia * texKd * light.lightColor * attenuation;
     vec3 lightDir = normalize(light.position - fragPos);
     result += light.Id * texKd * light.lightColor * max(0,dot(norm, lightDir)) * attenuation;
-    vec3 h = normalize(lightDir + viewDir); // 半程向量
-    result += light.Is * texKs * light.lightColor * pow(max(dot(norm, h),0.0), material.shininess) * attenuation;
+
+    if(useBlinnPhong){
+        vec3 h = normalize(lightDir + viewDir); // 半程向量
+        result += light.Is * texKs * light.lightColor * pow(max(dot(norm, h),0.0), material.shininess) * attenuation;
+    }else{
+        vec3 reflectDir = reflect(-lightDir, norm);
+        result += light.Is * texKs * light.lightColor * pow(max(dot(viewDir, reflectDir),0.0), material.shininess) * attenuation;
+    }
 
     return result;
 }
@@ -146,9 +161,14 @@ vec3 calcSpotLight(SpotLight light, vec3 norm, vec3 fragPos, vec3 viewDir, vec3 
 
     result += spot.Ia * texKd * spot.lightColor * attenuation; // 环境光不受聚光强度影响
     result += spot.Id * texKd * spot.lightColor * max(0, dot(norm, lightDir)) * attenuation * intensity;
-    vec3 h = normalize(lightDir + viewDir);
-    result += spot.Is * spot.lightColor * texKs * pow(max(0, dot(h, norm)), material.shininess) * attenuation * intensity;
+
+    if(useBlinnPhong){
+        vec3 h = normalize(lightDir + viewDir); // 半程向量
+        result += spot.Is * spot.lightColor * texKs * pow(max(0, dot(h, norm)), material.shininess) * attenuation * intensity;
+    }else{
+        vec3 reflectDir = reflect(-lightDir, norm);
+        result += spot.Is * spot.lightColor * texKs * pow(max(0, dot(viewDir, reflectDir)), material.shininess) * attenuation * intensity;
+    }
 
     return result;
 }
-
