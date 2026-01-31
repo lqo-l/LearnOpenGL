@@ -101,10 +101,20 @@ inline glm::mat4 ModelLookAt(glm::vec3 pos, glm::vec3 target, glm::vec3 up = glm
  * @param minFilter 缩小过滤器，默认GL_LINEAR_MIPMAP_LINEAR,可选GL_NEAREST_MIPMAP_NEAREST, GL_LINEAR, GL_NEAREST等
  * @param magFilter 放大过滤器，默认GL_LINEAR,可选GL_NEAREST
  * @param borderColor 当warp模式为GL_CLAMP_TO_BORDER时，设置边界颜色，默认不设置为纯黑
+ * @param flip 加载图片时是否垂直翻转，默认true
+ * @param internalFormat 指定纹理格式，可以指定GL_SRGB以恢复纹理的线性空间，默认不指定
  * 
  * @return unsigned int 纹理对象ID
  */
-inline unsigned int loadTexture(const char *path, GLenum warpS = GL_REPEAT, GLenum warpT = GL_REPEAT, GLenum minFilter = GL_LINEAR_MIPMAP_LINEAR, GLenum magFilter = GL_LINEAR, std::optional<glm::vec4> borderColor = std::nullopt, bool flip = true)
+inline unsigned int loadTexture(const char *path, 
+	GLenum warpS = GL_REPEAT, 
+	GLenum warpT = GL_REPEAT, 
+	GLenum minFilter = GL_LINEAR_MIPMAP_LINEAR, 
+	GLenum magFilter = GL_LINEAR, 
+	std::optional<glm::vec4> borderColor = std::nullopt, 
+	bool flip = true,
+	std::optional<GLenum> internalFormat = std::nullopt 
+)
 {
 	unsigned int textureID;
 	glGenTextures(1, &textureID);
@@ -116,16 +126,21 @@ inline unsigned int loadTexture(const char *path, GLenum warpS = GL_REPEAT, GLen
 	unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
 	if (data)
 	{
-		GLenum format;
+		GLenum dataFormat = GL_RGB; // 外部格式根据通道决定
 		if (nrComponents == 1)
-			format = GL_RED;
+			dataFormat = GL_RED;
 		else if (nrComponents == 3)
-			format = GL_RGB;
+			dataFormat = GL_RGB;
 		else if (nrComponents == 4)
-			format = GL_RGBA;
+			dataFormat = GL_RGBA;
+
+		GLenum internalFmt = dataFormat; // 内部格式若无指定则同外部格式
+		if(internalFormat.has_value()){
+			internalFmt = internalFormat.value(); 
+		}
 
 		glBindTexture(GL_TEXTURE_2D, textureID);
-		glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+		glTexImage2D(GL_TEXTURE_2D, 0, internalFmt, width, height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
 		glGenerateMipmap(GL_TEXTURE_2D);
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, warpS);
