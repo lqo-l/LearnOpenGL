@@ -89,11 +89,17 @@ float ShadowCalculation(vec4 fragPosLightSpace){
 
     // 转换到[0,1]区间（屏幕空间），作为纹理坐标使用
     vec3 projCoords = fragPosLightSpace.xyz * 0.5 + 0.5;
+    if(projCoords.z > 1.0) // 超出光源视锥体原平面，直接不在阴影中
+        return 0.0;
 
     float closestDepth = texture(shadowMap, projCoords.xy).r; // 纹理中存储的深度值
     float currentDepth = projCoords.z; // 片元在光源空间的深度值
-    float shadow = currentDepth > closestDepth ? 1.0 : 0.0; // 简单比较，当前深度大于纹理深度则在阴影中
-
+    // float shadow = currentDepth > closestDepth ? 1.0 : 0.0; // 简单比较，当前深度大于纹理深度则在阴影中
+    // float bias = 0.005; // 阴影偏移，防止阴影失真(自阴影面板条纹现象)
+    vec3 normal = normalize(fs_in.normal);
+    vec3 lightDir = normalize(-parallel.direction);
+    float bias = max(0.05 * (1-dot(normal, lightDir)) , 0.005); // 根据法线和光线方向计算偏移量(斜面偏移更大)
+    float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0; // 让当前视角的深度更近一些
     return shadow;
 }
 
