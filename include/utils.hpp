@@ -68,19 +68,46 @@ inline std::string getAssetAbsPath(const char *argv0, const std::string &relativ
 	return fs::absolute(combined).lexically_normal().string();
 }
 
-/// <summary>
-/// 根据模型的位置和lookat构建模型的model矩阵（从模型空间到世界空间），
-///注：view构建用glm::lookAt,这里用于构造model的。区别在于：相机的front是-z；此外view矩阵是world->camera(model)，model矩阵是model->world。
-/// </summary>
-/// <param name="pos">模型位置</param>
-/// <param name="target">看向的目标</param>
-/// <param name="up">上向量</param>
-/// <returns>model矩阵</returns>
+
+
+/**
+ * @brief 据物体的位置和lookat构建模型的model矩阵（从模型空间到世界空间），
+ * 注：view构建用glm::lookAt,这里用于构造model的。区别在于：相机的front是-z；此外view矩阵是world->camera(model)，model矩阵是model->world。
+ * @param pos 物体世界位置
+ * @param target 看向的目标世界位置
+ * @param up 上向量 
+ * @return glm::mat4 model矩阵
+ */
+
 inline glm::mat4 ModelLookAt(glm::vec3 pos, glm::vec3 target, glm::vec3 up = glm::vec3(0.f, 1.f, 0.f))
 {
 	glm::mat4 model(1.f);
 
 	glm::vec3 front(normalize(target - pos));			// z
+	glm::vec3 right = normalize(glm::cross(up, front)); // x
+	up = glm::cross(front, right);						// y
+
+	model[0] = glm::vec4(right, 0);
+	model[1] = glm::vec4(up, 0);
+	model[2] = glm::vec4(front, 0);
+	model[3] = glm::vec4(pos, 1);
+
+	return model; // 模型->世界的变换矩阵model
+}
+
+/**
+ * @brief 根据物体位置和看向的方向构建model矩阵
+ * 
+ * @param pos 物体位置
+ * @param dir 物体视线方向
+ * @param up 上向量
+ * @return glm::mat4 model矩阵 
+*/
+inline glm::mat4 ModelLookAlong(glm::vec3 pos, glm::vec3 dir, glm::vec3 up = glm::vec3(0.f, 1.f, 0.f))
+{
+	glm::mat4 model(1.f);
+
+	glm::vec3 front(normalize(dir));		// z
 	glm::vec3 right = normalize(glm::cross(up, front)); // x
 	up = glm::cross(front, right);						// y
 

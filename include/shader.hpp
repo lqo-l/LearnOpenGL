@@ -27,7 +27,7 @@ public:
 		glDeleteProgram(ID);
 	}
 	// 激活程序
-	void use();
+	void use() const;
 	// uniform工具函数
 	void setBool(const std::string &name, bool value) const;
 	void setInt(const std::string &name, int value) const;
@@ -155,7 +155,7 @@ inline Shader::Shader(const char *vertexPath, const char *fragmentPath, const ch
 	}
 }
 
-inline void Shader::use()
+inline void Shader::use() const
 {
 	glUseProgram(ID);
 }
