@@ -19,9 +19,9 @@ void main()
     float depthValue = texture(depthMap, TexCoords).r; // texture返回vec4，我们只需要其中的r分量
     float depth;
     if(needToLinearizeDepth){
-         depth = (LinearizeDepth(gl_FragCoord.z) - near) / (far - near) ; // 透视投影用, 这里线性化后进行归一化处理 [near,far]->[0,1]
+        depth = (LinearizeDepth(depthValue) - near) / (far - near) ; // 透视投影用, 这里线性化后进行归一化处理 [near,far]->[0,1]
     }else{
-         depth = depthValue; // 正交投影不需要线性化，本身也在[0,1]不需要归一化
+        depth = depthValue; // 正交投影不需要线性化，本身也在[0,1]不需要归一化
     }
 
     FragColor = vec4(vec3(depth), 1.0);

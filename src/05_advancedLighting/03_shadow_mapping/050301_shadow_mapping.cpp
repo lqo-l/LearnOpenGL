@@ -264,10 +264,13 @@ int main(int argc, char **argv)
     glm::vec3 dirlightPos{-2.0f, 4.0f, -1.0f}; // 定向光源位置
     float lightNearPlane = 1.0f;
     float lightFarPlane = 7.5f;
+    bool useCullFrontForDepthMap = true; // 是否在深度贴图生成阶段使用正面剔除,避免使用bias的阴影悬浮
+    bool pcfEnabled = true; // 是否开启PCF
+    bool adaptiveShadowBias = true; // 是否开启自适应阴影偏差
 
     // 光源开启设置
-    bool openParallelLight = true;
-    bool openPointLight = false;
+    bool openParallelLight = false;
+    bool openPointLight = true;
     bool openSpotLight = false;
 
     // 平行光
@@ -319,7 +322,7 @@ int main(int argc, char **argv)
             lightProjection = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, lightNearPlane, lightFarPlane);
             lightView = glm::lookAt(dirlightPos, dirlightPos+parallelLightDirection, glm::vec3(0.f, 1.f, 0.f));
         }else if(openPointLight){
-            lightProjection = glm::perspective(glm::radians(45.0f), float(SHADOW_WIDTH) / float(SHADOW_HEIGHT), lightNearPlane, lightFarPlane);
+            lightProjection = glm::perspective(glm::radians(90.0f), float(SHADOW_WIDTH) / float(SHADOW_HEIGHT), lightNearPlane, lightFarPlane);
             lightView = glm::lookAt(pointLightPos, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
         }
         // else if(openSpotLight){ // 暂不实现聚光灯的阴影映射
@@ -333,7 +336,11 @@ int main(int argc, char **argv)
         glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
         glClear(GL_DEPTH_BUFFER_BIT);
         glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT); // 设置视口为深度贴图大小
+        if(useCullFrontForDepthMap){
+            glCullFace(GL_FRONT); // 使用正面剔除，消除阴影失真的同时不出现阴影悬浮现象
+        }
         renderScene(simpleDepthShader, planeVAO, cubeVAO);
+        glCullFace(GL_BACK); // 恢复默认设置
 
         /// --- normal render pass ---
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -389,7 +396,7 @@ int main(int argc, char **argv)
 
         /// 光源Visualize立方体
         if(openParallelLight){
-            glm::mat4 model;
+            glm::mat4 model(1.0f);
             model = ModelLookAlong(dirlightPos, parallelLightDirection); // 定向光
             model = glm::scale(model, glm::vec3(0.1f,0.1f,0.2f));           // 缩小一些
             view = camera.GetViewMatrix();
@@ -400,7 +407,7 @@ int main(int argc, char **argv)
             lightShader.setMat4("projection", projection);
             renderCube(lightShader, cubeVAO, model);
         }else if(openPointLight){
-            glm::mat4 model;
+            glm::mat4 model(1.0f);
             model = glm::translate(model, pointLightPos); // 光源位置
             model = glm::scale(model, glm::vec3(0.1f));           // 缩小一些
             view = camera.GetViewMatrix();
@@ -409,7 +416,6 @@ int main(int argc, char **argv)
             lightShader.use();
             lightShader.setMat4("view", view);
             lightShader.setMat4("projection", projection);
-            lightShader.setMat4("model", model);
             renderCube(lightShader, cubeVAO, model);
         }
         
@@ -433,6 +439,9 @@ int main(int argc, char **argv)
             glEnable(GL_DEPTH_TEST);
         }
         
+        shader.use();
+        shader.setBool("pcfEnabled", pcfEnabled);
+        shader.setBool("adaptiveShadowBias", adaptiveShadowBias);
 
         /// imgui(最后绘制，避免被覆盖)
         ImGui_ImplOpenGL3_NewFrame();
@@ -452,7 +461,11 @@ int main(int argc, char **argv)
             ImGui::Checkbox("深度值可视化", &debugDepth);
             ImGui::DragFloat("光源视角近裁剪面", &lightNearPlane, 0.1f, 0.1f, 10.f);
             ImGui::DragFloat("光源视角远裁剪面", &lightFarPlane, 0.1f, 10.f, 50.f);
-            ImGui::DragFloat3("定向光位置", &dirlightPos[0], 0.1f);
+            ImGui::Separator();
+            ImGui::Checkbox("开启PCF", &pcfEnabled);
+            ImGui::Checkbox("开启自适应阴影偏差", &adaptiveShadowBias);
+            ImGui::Checkbox("深度贴图阶段正面剔除", &useCullFrontForDepthMap);
+            
 
             /// 光源
             if (ImGui::CollapsingHeader("平行光设置", ImGuiTreeNodeFlags_DefaultOpen))
@@ -463,6 +476,7 @@ int main(int argc, char **argv)
                 if (openParallelLight)
                 {
                     ImGui::Indent();
+                    ImGui::DragFloat3("平行光位置", &dirlightPos[0], 0.1f);
                     ImGui::ColorEdit3("平行光颜色", &parallelLightColor[0]);
                     ImGui::DragFloat3("平行光方向", &parallelLightDirection[0], 0.1f);
                     ImGui::ColorEdit3("平行光Ia", &parallelIa[0]);
